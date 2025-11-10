@@ -2,22 +2,25 @@
 
 {% block content %}
 <div class="w-full max-w-4xl mx-auto p-6">
-    <!-- Header de la sala -->
+    <!-- Header -->
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
         <h2 class="text-3xl font-bold text-violet-700 mb-2">Sala: {{ room.name }}</h2>
-        <p class="text-gray-600">
+        <p class="text-gray-600" id="user-info">
             {% if user.is_authenticated %}
                 Conectado como: <strong>{{ user.username }}</strong>
             {% else %}
                 Conectado como: <strong>Anónimo</strong>
             {% endif %}
         </p>
+        <div id="connection-status" class="text-sm text-green-600 mt-2">
+            ✅ Conectado en tiempo real
+        </div>
     </div>
 
     <!-- Área de mensajes -->
     <div id="messages-container" class="bg-white rounded-lg shadow-md p-6 mb-6 h-96 overflow-y-auto">
         {% for message in messages %}
-            <div class="mb-4 {% if message.user == user %}text-right{% endif %}">
+            <div class="mb-4 message-item {% if message.user == user %}text-right{% endif %}">
                 <div class="inline-block max-w-xs lg:max-w-md px-4 py-2 rounded-lg 
                           {% if message.user == user %}bg-violet-100 text-gray-800{% else %}bg-gray-200 text-gray-800{% endif %}">
                     <div class="font-semibold text-sm">
@@ -36,62 +39,118 @@
         {% endfor %}
     </div>
 
-    <!-- Formulario para enviar mensajes -->
+    <!-- Formulario -->
     <div class="bg-white rounded-lg shadow-md p-6">
-        <form method="POST" class="flex gap-4" id="message-form">
-            {% csrf_token %}
+        <div class="flex gap-4">
             <input 
                 type="text" 
-                name="content"
+                id="chat-message-input"
                 placeholder="Escribe tu mensaje..." 
                 class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                required
-                id="message-input"
+                maxlength="500"
             >
             <button 
-                type="submit"
+                id="chat-message-submit"
                 class="bg-violet-700 text-white px-6 py-2 rounded-lg hover:bg-violet-800 transition duration-300 font-semibold"
             >
                 Enviar
             </button>
-        </form>
+        </div>
+        <div id="typing-indicator" class="text-gray-500 text-sm mt-2 hidden">
+            Alguien está escribiendo...
+        </div>
     </div>
 
-    <!-- Botón para volver -->
+    <!-- Botón volver -->
     <div class="mt-6 text-center">
-        <a 
-            href="{% url 'home' %}" 
-            class="inline-block bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition duration-300"
-        >
+        <a href="{% url 'home' %}" class="inline-block bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition duration-300">
             ← Volver a salas
         </a>
     </div>
 </div>
 
+{{ room.id|json_script:"room-id" }}
+{{ user.username|default:"Anónimo"|json_script:"username" }}
 
 <script>
-    // Recargar mensajes cada 2 segundos
-    setInterval(function() {
-        // Solo recargar si el usuario no está escribiendo
-        const messageInput = document.getElementById('message-input');
-        if (!messageInput.matches(':focus')) {
-            location.reload();
-        }
-    }, 2000);
+    const roomId = JSON.parse(document.getElementById('room-id').textContent);
+    const username = JSON.parse(document.getElementById('username').textContent);
+    
+    const chatSocket = new WebSocket(
+        'ws://' + window.location.host + '/ws/chat/' + roomId + '/'
+    );
 
-    // Enfocar el input automáticamente y hacer scroll al final
+    // Manejar mensajes entrantes
+    chatSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        displayMessage(data.message, data.username, data.timestamp);
+    };
+
+    // Manejar conexión/desconexión
+    chatSocket.onopen = function(e) {
+        document.getElementById('connection-status').textContent = '✅ Conectado en tiempo real';
+    };
+
+    chatSocket.onclose = function(e) {
+        document.getElementById('connection-status').textContent = '❌ Desconectado - Recarga la página';
+    };
+
+    // Enviar mensaje
+    document.querySelector('#chat-message-input').focus();
+    document.querySelector('#chat-message-input').onkeyup = function(e) {
+        if (e.keyCode === 13) {  // Enter
+            sendMessage();
+        }
+    };
+
+    document.querySelector('#chat-message-submit').onclick = sendMessage;
+
+    function sendMessage() {
+        const messageInput = document.querySelector('#chat-message-input');
+        const message = messageInput.value.trim();
+        
+        if (message) {
+            chatSocket.send(JSON.stringify({
+                'message': message,
+                'username': username
+            }));
+            messageInput.value = '';
+        }
+    }
+
+    function displayMessage(message, username, timestamp) {
+        const messagesContainer = document.getElementById('messages-container');
+        const messageElement = document.createElement('div');
+        messageElement.className = 'mb-4 message-item';
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = 'inline-block max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-gray-200 text-gray-800';
+        
+        const userInfo = document.createElement('div');
+        userInfo.className = 'font-semibold text-sm';
+        userInfo.innerHTML = username + ' <span class="text-xs text-gray-500">' + timestamp + '</span>';
+        
+        const messageText = document.createElement('div');
+        messageText.className = 'mt-1';
+        messageText.textContent = message;
+        
+        messageContent.appendChild(userInfo);
+        messageContent.appendChild(messageText);
+        messageElement.appendChild(messageContent);
+        messagesContainer.appendChild(messageElement);
+        
+        // Scroll al final y limpiar mensaje vacío
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        const emptyMessage = messagesContainer.querySelector('.text-center');
+        if (emptyMessage) {
+            emptyMessage.remove();
+        }
+    }
+
+    // Scroll inicial al final
     document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('message-input').focus();
         const messagesContainer = document.getElementById('messages-container');
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    });
-
-    // Scroll al final después de enviar
-    document.getElementById('message-form').addEventListener('submit', function() {
-        setTimeout(function() {
-            const messagesContainer = document.getElementById('messages-container');
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }, 100);
     });
 </script>
 {% endblock %}
