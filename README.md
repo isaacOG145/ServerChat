@@ -1,0 +1,6 @@
+#Versiones del chat 
+
+
+Version 1.0 
+ md5 server: 49292F15943903922E40042DC6BE7E47 
+ md5 client: B287EA668BAAC71377F725C08957EBA1
