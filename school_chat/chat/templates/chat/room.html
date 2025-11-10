@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="w-full max-w-4xl mx-auto p-6">
+    <!-- Header de la sala -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 class="text-3xl font-bold text-violet-700 mb-2">Sala: {{ room.name }}</h2>
+        <p class="text-gray-600">
+            {% if user.is_authenticated %}
+                Conectado como: <strong>{{ user.username }}</strong>
+            {% else %}
+                Conectado como: <strong>Anónimo</strong>
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Área de mensajes -->
+    <div id="messages-container" class="bg-white rounded-lg shadow-md p-6 mb-6 h-96 overflow-y-auto">
+        {% for message in messages %}
+            <div class="mb-4 {% if message.user == user %}text-right{% endif %}">
+                <div class="inline-block max-w-xs lg:max-w-md px-4 py-2 rounded-lg 
+                          {% if message.user == user %}bg-violet-100 text-gray-800{% else %}bg-gray-200 text-gray-800{% endif %}">
+                    <div class="font-semibold text-sm">
+                        {% if message.user %}{{ message.user.username }}{% else %}Anónimo{% endif %}
+                        <span class="text-xs text-gray-500 ml-2">
+                            {{ message.timestamp|time:"H:i" }}
+                        </span>
+                    </div>
+                    <div class="mt-1">{{ message.content }}</div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="text-center text-gray-500 h-full flex items-center justify-center">
+                <p>No hay mensajes aún. ¡Sé el primero en escribir!</p>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Formulario para enviar mensajes -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <form method="POST" class="flex gap-4" id="message-form">
+            {% csrf_token %}
+            <input 
+                type="text" 
+                name="content"
+                placeholder="Escribe tu mensaje..." 
+                class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                required
+                id="message-input"
+            >
+            <button 
+                type="submit"
+                class="bg-violet-700 text-white px-6 py-2 rounded-lg hover:bg-violet-800 transition duration-300 font-semibold"
+            >
+                Enviar
+            </button>
+        </form>
+    </div>
+
+    <!-- Botón para volver -->
+    <div class="mt-6 text-center">
+        <a 
+            href="{% url 'home' %}" 
+            class="inline-block bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition duration-300"
+        >
+            ← Volver a salas
+        </a>
+    </div>
+</div>
+
+
+<script>
+    // Recargar mensajes cada 2 segundos
+    setInterval(function() {
+        // Solo recargar si el usuario no está escribiendo
+        const messageInput = document.getElementById('message-input');
+        if (!messageInput.matches(':focus')) {
+            location.reload();
+        }
+    }, 2000);
+
+    // Enfocar el input automáticamente y hacer scroll al final
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('message-input').focus();
+        const messagesContainer = document.getElementById('messages-container');
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    });
+
+    // Scroll al final después de enviar
+    document.getElementById('message-form').addEventListener('submit', function() {
+        setTimeout(function() {
+            const messagesContainer = document.getElementById('messages-container');
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }, 100);
+    });
+</script>
+{% endblock %}
